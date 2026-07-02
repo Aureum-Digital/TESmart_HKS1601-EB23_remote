@@ -1,4 +1,4 @@
--r requirements.txt
+-r tesmart_kvm/requirements.txt
 pytest>=8.0
 pytest-asyncio>=0.23
 httpx>=0.27

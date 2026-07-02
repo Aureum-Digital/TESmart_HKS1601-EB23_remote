@@ -1,12 +1,19 @@
 """Persistent app configuration.
 
-Config lives as JSON in ``$CONFIG_DIR/config.json`` (default ``/config``,
-which is both the Docker volume and, later, the natural place for a Home
-Assistant add-on's persistent data).
+Config lives as JSON in ``$CONFIG_DIR/config.json``. The directory is
+resolved as: ``$CONFIG_DIR`` if set, ``/data`` when running as a Home
+Assistant add-on (detected via ``/data/options.json``), else ``/config``
+(the standalone Docker volume).
 
-Environment variables seed the config on first start only; once the file
-exists, values edited through the UI/API win. This mirrors how HA add-ons
-pass options into a container.
+Standalone: environment variables seed the config on first start only; once
+the file exists, values edited through the UI/API win.
+
+Home Assistant add-on: the options from the add-on's Configuration tab
+(``/data/options.json``) override connection/MQTT/polling settings on every
+start, so the HA panel is the source of truth for those. Input names, icons
+and hidden inputs stay web-UI-managed and persist in ``/data/config.json``.
+If no MQTT host is set, the broker is auto-discovered from the Supervisor's
+MQTT service (e.g. the Mosquitto add-on).
 """
 
 from __future__ import annotations
@@ -16,13 +23,27 @@ import logging
 import os
 import re
 import threading
+import urllib.error
+import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
-CONFIG_DIR = Path(os.environ.get("CONFIG_DIR", "/config"))
+ADDON_OPTIONS_FILE = Path(os.environ.get("ADDON_OPTIONS_FILE", "/data/options.json"))
+
+
+def _default_config_dir() -> Path:
+    env = os.environ.get("CONFIG_DIR")
+    if env:
+        return Path(env)
+    if ADDON_OPTIONS_FILE.exists():  # running as a Home Assistant add-on
+        return ADDON_OPTIONS_FILE.parent
+    return Path("/config")
+
+
+CONFIG_DIR = _default_config_dir()
 CONFIG_FILE = CONFIG_DIR / "config.json"
 
 DEFAULT_INPUT_NAMES = {str(i): f"PC{i}" for i in range(1, 17)}
@@ -152,13 +173,49 @@ def _coerce_port(value: Any, default: int) -> int:
     return port if 1 <= port <= 65535 else default
 
 
+def _load_addon_options() -> dict[str, Any] | None:
+    """Read the Home Assistant add-on options, if running as an add-on."""
+    if not ADDON_OPTIONS_FILE.exists():
+        return None
+    try:
+        options = json.loads(ADDON_OPTIONS_FILE.read_text())
+    except (OSError, json.JSONDecodeError) as exc:
+        logger.error("could not read add-on options %s: %s", ADDON_OPTIONS_FILE, exc)
+        return None
+    logger.info("running as Home Assistant add-on (options from %s)", ADDON_OPTIONS_FILE)
+    return options if isinstance(options, dict) else None
+
+
+def _supervisor_mqtt_service() -> dict[str, Any] | None:
+    """Ask the HA Supervisor for the MQTT service (e.g. Mosquitto add-on)."""
+    token = os.environ.get("SUPERVISOR_TOKEN")
+    if not token:
+        return None
+    request = urllib.request.Request(
+        "http://supervisor/services/mqtt",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=5) as response:
+            payload = json.loads(response.read())
+    except (OSError, urllib.error.URLError, json.JSONDecodeError) as exc:
+        logger.info("no MQTT service from Supervisor (%s)", exc)
+        return None
+    data = payload.get("data")
+    return data if isinstance(data, dict) and data.get("host") else None
+
+
 class ConfigStore:
     """Thread-safe load/save wrapper around the JSON config file."""
 
     def __init__(self, path: Path = CONFIG_FILE) -> None:
         self.path = path
         self._lock = threading.Lock()
+        self.addon_options = _load_addon_options()
+        self.addon_managed = self.addon_options is not None
         self.config = self._load()
+        if self.addon_options is not None:
+            self._apply_addon_options(self.config, self.addon_options)
 
     def _load(self) -> AppConfig:
         if self.path.exists():
@@ -171,6 +228,45 @@ class ConfigStore:
         config = AppConfig.from_env()
         self._write(config)
         return config
+
+    def _apply_addon_options(self, config: AppConfig, options: dict[str, Any]) -> None:
+        """Overlay HA add-on options; they win on every start (not persisted)."""
+        host = str(options.get("kvm_host") or "").strip()
+        if host:
+            config.kvm.host = host
+        config.kvm.port = _coerce_port(options.get("kvm_port"), config.kvm.port)
+        try:
+            config.poll_interval = max(
+                1.0, float(options.get("poll_interval", config.poll_interval))
+            )
+        except (TypeError, ValueError):
+            pass
+
+        mqtt_host = str(options.get("mqtt_host") or "").strip()
+        if mqtt_host:
+            config.mqtt.host = mqtt_host
+            config.mqtt.port = _coerce_port(options.get("mqtt_port"), config.mqtt.port)
+            config.mqtt.username = str(options.get("mqtt_username") or "")
+            config.mqtt.password = str(options.get("mqtt_password") or "")
+        else:
+            service = _supervisor_mqtt_service()
+            if service:
+                config.mqtt.host = str(service["host"])
+                config.mqtt.port = _coerce_port(service.get("port"), 1883)
+                config.mqtt.username = str(service.get("username") or "")
+                config.mqtt.password = str(service.get("password") or "")
+                logger.info(
+                    "MQTT broker auto-discovered via Supervisor: %s:%d",
+                    config.mqtt.host,
+                    config.mqtt.port,
+                )
+            else:
+                config.mqtt.host = ""
+        base_topic = str(options.get("mqtt_base_topic") or "").strip("/")
+        if base_topic:
+            config.mqtt.base_topic = base_topic
+        config.mqtt.discovery = bool(options.get("mqtt_discovery", config.mqtt.discovery))
+        config.mqtt.enabled = bool(config.mqtt.host)
 
     def save(self, config: AppConfig) -> None:
         with self._lock:

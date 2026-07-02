@@ -1,0 +1,30 @@
+configuration:
+  kvm_host:
+    name: KVM IP / hostname
+    description: IP address of the TESmart HKS1601-EB23 on your network.
+  kvm_port:
+    name: KVM TCP port
+    description: TCP control port of the switch (default 5000).
+  poll_interval:
+    name: Poll interval (seconds)
+    description: How often the active input is queried from the device.
+  mqtt_host:
+    name: MQTT broker host
+    description: >-
+      Leave empty to auto-discover the Mosquitto broker add-on, or set a
+      host to use an external broker. MQTT is disabled if neither is found.
+  mqtt_port:
+    name: MQTT broker port
+  mqtt_username:
+    name: MQTT username
+  mqtt_password:
+    name: MQTT password
+  mqtt_base_topic:
+    name: MQTT base topic
+    description: All topics are published/subscribed under this prefix.
+  mqtt_discovery:
+    name: Home Assistant MQTT discovery
+    description: Automatically create the KVM entities in Home Assistant.
+  log_level:
+    name: Log level
+    description: debug logs every TX/RX frame sent to the switch.

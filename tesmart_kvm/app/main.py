@@ -27,6 +27,10 @@ logger = logging.getLogger(__name__)
 STATIC_DIR = Path(__file__).parent / "static"
 
 store = ConfigStore()
+if store.addon_options:  # HA add-on option wins over the LOG_LEVEL env default
+    _level = str(store.addon_options.get("log_level", "")).upper()
+    if _level:
+        logging.getLogger().setLevel(getattr(logging, _level, logging.INFO))
 controller = KVMController(store.config)
 bridge: MqttBridge | None = None
 
@@ -138,7 +142,11 @@ async def _run_command(coro) -> dict[str, Any]:
 async def get_config() -> dict[str, Any]:
     # Note: returns the MQTT password so the settings form round-trips;
     # this app is meant for a trusted LAN (see README).
-    return store.config.to_dict()
+    data = store.config.to_dict()
+    # true when running as a HA add-on: connection/MQTT/polling come from the
+    # add-on configuration, so the web UI shows those fields read-only
+    data["addon_managed"] = store.addon_managed
+    return data
 
 
 @app.post("/api/config")

@@ -3,13 +3,31 @@
 Web + MQTT controller for the TESmart HKS1601-EB23 16-port HDMI KVM switch,
 talking to the switch over its raw TCP protocol (default `10.0.4.50:5000`).
 
-- **Web UI** — input grid with custom names, buzzer mute/unmute, LED timeout,
-  manual refresh, auto-refresh, settings page, connection status.
+- **Web UI** — input grid with custom names/icons, buzzer mute/unmute, LED
+  timeout, manual refresh, auto-refresh, settings page, connection status.
 - **REST API** — everything the UI does, scriptable.
 - **MQTT** — control/status topics plus optional Home Assistant MQTT discovery.
 - **Docker-first** — single container, config persisted in a `/config` volume.
+- **Home Assistant add-on** — this repo is also an installable add-on
+  repository with Ingress ("Open Web UI") and options in the HA panel.
 
-## Quick start
+## Home Assistant add-on
+
+1. In HA go to **Settings → Add-ons → Add-on Store → ⋮ → Repositories** and add
+   `https://github.com/Aureum-Digital/TESmart_HKS1601-EB23_remote`
+2. Install **TESmart KVM Controller** from the store.
+3. Open the add-on's **Configuration** tab and set `kvm_host` (and MQTT
+   options if you don't use the Mosquitto add-on — with Mosquitto installed
+   the broker is auto-discovered, leave `mqtt_host` empty).
+4. Start the add-on, then click **Open Web UI** (the panel also appears in
+   the sidebar as **KVM** via Ingress).
+
+When running as an add-on, connection/MQTT/polling settings come from the HA
+configuration panel and are shown read-only in the web UI; input names, icons
+and hidden inputs are managed in the web UI and persist in the add-on data.
+See [tesmart_kvm/DOCS.md](tesmart_kvm/DOCS.md) for all options.
+
+## Quick start (standalone Docker)
 
 ```bash
 docker compose up -d --build
@@ -126,33 +144,28 @@ make the switch unreachable.
 ## Project layout
 
 ```
-app/
-  tesmart/            # standalone library — no web/MQTT dependencies
-    protocol.py       #   frame building/parsing (pure functions)
-    client.py         #   async TCP client (TESmartKVM)
-  config.py           # JSON config persisted in $CONFIG_DIR
-  controller.py       # shared state + background status poller
-  mqtt_bridge.py      # MQTT publish/subscribe + HA discovery
-  main.py             # FastAPI app / REST API
-  static/index.html   # web UI
-tests/                # protocol frame + client tests (fake KVM server)
+repository.yaml         # makes this repo a HA add-on repository
+docker-compose.yml      # standalone deployment
+tesmart_kvm/            # the add-on (also the standalone image context)
+  config.yaml           #   HA add-on manifest: options schema, ingress, ports
+  build.yaml            #   per-arch base images for Supervisor builds
+  Dockerfile            #   BUILD_FROM-aware; same image standalone and add-on
+  DOCS.md               #   add-on documentation shown in HA
+  translations/en.yaml  #   pretty option labels in the HA config panel
+  app/
+    tesmart/            # standalone library — no web/MQTT dependencies
+      protocol.py       #   frame building/parsing (pure functions)
+      client.py         #   async TCP client (TESmartKVM)
+    config.py           # JSON config in $CONFIG_DIR; reads HA add-on options
+    controller.py       # shared state + background status poller
+    mqtt_bridge.py      # MQTT publish/subscribe + HA discovery
+    main.py             # FastAPI app / REST API
+    static/index.html   # web UI (relative URLs — works behind HA Ingress)
+tests/                  # protocol frame + client tests (fake KVM server)
 ```
 
-## Home Assistant add-on (future)
-
-The layout anticipates the add-on conversion:
-
-- Config already lives in a single JSON file under `/config`, mappable to the
-  add-on's data dir (point `CONFIG_DIR` at `/data`); add-on options can simply
-  become the seed environment variables.
-- The web UI is a single page served by the same process, ready for Ingress
-  (`ingress: true`, port 8080).
-- MQTT discovery already makes entities appear automatically; under an add-on,
-  broker credentials can come from the Supervisor's MQTT service instead of
-  env vars.
-- The `app/tesmart/` library is dependency-free and could also back a native
-  HA integration later.
-
-An add-on skeleton would add: `config.yaml` (name, slug, `ingress: true`,
-options schema mirroring the env vars), a `run.sh` translating add-on options
-to environment variables, and this image built per-arch.
+How the dual mode works: the app resolves its config dir as `$CONFIG_DIR` →
+`/data` (if `/data/options.json` exists, i.e. running as an add-on) →
+`/config`. As an add-on it overlays `/data/options.json` onto the persisted
+config on every start and, when `mqtt_host` is empty, asks the Supervisor for
+the Mosquitto service credentials (`services: mqtt:want`).

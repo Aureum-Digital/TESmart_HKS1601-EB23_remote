@@ -1,6 +1,6 @@
 services:
   tesmart-kvm:
-    build: .
+    build: ./tesmart_kvm
     image: tesmart-kvm-controller:latest
     container_name: tesmart-kvm
     restart: unless-stopped
@@ -19,3 +19,4 @@ services:
       MQTT_PASSWORD: ""
       MQTT_BASE_TOPIC: "tesmart/kvm"
       LOG_LEVEL: "INFO"        # DEBUG logs every TX/RX hex frame
+      CONFIG_DIR: "/config"

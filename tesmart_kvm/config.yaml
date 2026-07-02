@@ -1,0 +1,46 @@
+name: TESmart KVM Controller
+version: "0.2.0"
+slug: tesmart_kvm
+description: Web + MQTT controller for the TESmart HKS1601-EB23 16-port HDMI KVM switch
+url: https://github.com/Aureum-Digital/TESmart_HKS1601-EB23_remote
+arch:
+  - amd64
+  - aarch64
+  - armv7
+startup: services
+boot: auto
+ingress: true
+ingress_port: 8080
+panel_icon: mdi:video-switch
+panel_title: KVM
+# Optional direct access to the web UI besides Ingress (disabled by default)
+ports:
+  8080/tcp: null
+ports_description:
+  8080/tcp: Web UI (optional — Ingress works without exposing a port)
+webui: http://[HOST]:[PORT:8080]
+# Allows auto-discovering the Mosquitto broker add-on when mqtt_host is empty
+services:
+  - mqtt:want
+options:
+  kvm_host: "10.0.4.50"
+  kvm_port: 5000
+  poll_interval: 5
+  mqtt_host: ""
+  mqtt_port: 1883
+  mqtt_username: ""
+  mqtt_password: ""
+  mqtt_base_topic: tesmart/kvm
+  mqtt_discovery: true
+  log_level: info
+schema:
+  kvm_host: str
+  kvm_port: port
+  poll_interval: float(1,)
+  mqtt_host: str?
+  mqtt_port: port
+  mqtt_username: str?
+  mqtt_password: password?
+  mqtt_base_topic: str
+  mqtt_discovery: bool
+  log_level: list(debug|info|warning|error)

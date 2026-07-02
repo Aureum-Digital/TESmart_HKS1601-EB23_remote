@@ -199,6 +199,16 @@
   input:focus, select:focus {
     outline: none; border-color: var(--blue); box-shadow: var(--ring);
   }
+  input:disabled, select:disabled {
+    background: #f0f1f3; color: var(--muted); cursor: not-allowed;
+  }
+  .addon-note {
+    display: none; align-items: flex-start; gap: 9px;
+    background: var(--blue-tint); border: 1px solid var(--blue-border);
+    color: #2b5aa8; border-radius: var(--radius-sm); padding: 10px 14px;
+    margin-top: 14px; font-size: 12.5px;
+  }
+  .addon-note .mdi { font-size: 15px; flex: none; margin-top: 1px; color: var(--blue); }
   .names-grid {
     display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
     gap: 12px; margin-top: 14px;
@@ -314,6 +324,12 @@
         <span class="mdi mdi-chevron-down chev"></span>
       </summary>
 
+      <div class="addon-note" id="addon-note"><span class="mdi mdi-home-assistant"></span>
+        Connection, MQTT and polling are managed by the Home Assistant add-on
+        configuration (Settings &rarr; Add-ons &rarr; TESmart KVM Controller &rarr; Configuration)
+        and are shown here read-only. Input names, icons and visibility are editable below.
+      </div>
+
       <p class="section-label"><span class="mdi mdi-video-switch-outline"></span>KVM connection</p>
       <div class="grid2">
         <div class="field"><label>KVM IP / host</label><input type="text" id="cfg-kvm-host"></div>
@@ -343,7 +359,7 @@
     </details>
   </div>
 
-  <footer>TESmart KVM Controller &middot; REST API at <a href="/docs">/docs</a></footer>
+  <footer>TESmart KVM Controller &middot; REST API at <a href="docs">/docs</a></footer>
 </div>
 <div id="toast"><span class="mdi mdi-check-circle-outline"></span><span id="toast-text"></span></div>
 
@@ -462,8 +478,9 @@ function applyStatus(st) {
 
 async function refreshStatus(manual = false) {
   try {
-    if (manual) await api("/api/refresh", { method: "POST" });
-    const st = await api("/api/status");
+    // NB: all API paths are relative so the app works behind HA Ingress
+    if (manual) await api("api/refresh", { method: "POST" });
+    const st = await api("api/status");
     applyStatus(st);
   } catch (err) {
     showError(err.message);
@@ -474,7 +491,7 @@ async function refreshStatus(manual = false) {
 
 async function selectInput(i) {
   try {
-    await api(`/api/input/${i}`, { method: "POST" });
+    await api(`api/input/${i}`, { method: "POST" });
     currentInput = i;
     renderInputs();
     $("active-label").textContent = `${inputNames[String(i)] || "PC" + i} (PC${i})`;
@@ -530,7 +547,7 @@ function updateIconPreview(i) {
 }
 
 async function loadConfig() {
-  const cfg = await api("/api/config");
+  const cfg = await api("api/config");
   $("cfg-kvm-host").value = cfg.kvm.host;
   $("cfg-kvm-port").value = cfg.kvm.port;
   $("cfg-poll").value = cfg.poll_interval;
@@ -540,6 +557,12 @@ async function loadConfig() {
   $("cfg-mqtt-pass").value = cfg.mqtt.password;
   $("cfg-mqtt-topic").value = cfg.mqtt.base_topic;
   $("cfg-mqtt-discovery").value = String(cfg.mqtt.discovery);
+  // Under the HA add-on these fields come from the add-on config: read-only here
+  const managed = !!cfg.addon_managed;
+  $("addon-note").style.display = managed ? "flex" : "none";
+  ["cfg-kvm-host", "cfg-kvm-port", "cfg-poll", "cfg-mqtt-host", "cfg-mqtt-port",
+   "cfg-mqtt-user", "cfg-mqtt-pass", "cfg-mqtt-topic", "cfg-mqtt-discovery"]
+    .forEach(id => { $(id).disabled = managed; });
   const hidden = cfg.hidden_inputs || [];
   for (let i = 1; i <= 16; i++) {
     $(`name-${i}`).value = cfg.input_names[String(i)] || `PC${i}`;
@@ -582,7 +605,7 @@ async function saveConfig() {
     poll_interval: parseFloat($("cfg-poll").value) || 5,
   };
   try {
-    await api("/api/config", {
+    await api("api/config", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -603,11 +626,11 @@ async function saveConfig() {
 $("btn-refresh").addEventListener("click", () => refreshStatus(true));
 document.querySelectorAll("#buzzer-seg button").forEach(b =>
   b.addEventListener("click", () =>
-    deviceAction(`/api/buzzer/${b.dataset.buzzer}`,
+    deviceAction(`api/buzzer/${b.dataset.buzzer}`,
       b.dataset.buzzer === "mute" ? "Buzzer muted" : "Buzzer unmuted")));
 document.querySelectorAll("#led-seg button").forEach(b =>
   b.addEventListener("click", () =>
-    deviceAction(`/api/led-timeout/${b.dataset.mode}`, `LED timeout: ${b.dataset.mode}`)));
+    deviceAction(`api/led-timeout/${b.dataset.mode}`, `LED timeout: ${b.dataset.mode}`)));
 $("btn-save").addEventListener("click", saveConfig);
 $("settings").addEventListener("toggle", (e) => {
   if (e.target.open) loadConfig().catch(err => showError(err.message));

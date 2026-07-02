@@ -1,4 +1,7 @@
-FROM python:3.12-slim
+# BUILD_FROM lets the Home Assistant Supervisor inject its per-arch base
+# image (see build.yaml); standalone builds get the same default.
+ARG BUILD_FROM=python:3.12-slim
+FROM ${BUILD_FROM}
 
 WORKDIR /srv
 
@@ -7,10 +10,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
 
-# Persistent config (also where a future HA add-on keeps its data)
-ENV CONFIG_DIR=/config
-VOLUME ["/config"]
-
+# Config dir resolution (app/config.py): $CONFIG_DIR if set, /data when
+# running as a HA add-on, /config otherwise (standalone Docker volume).
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
