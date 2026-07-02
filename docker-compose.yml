@@ -1,0 +1,21 @@
+services:
+  tesmart-kvm:
+    build: .
+    image: tesmart-kvm-controller:latest
+    container_name: tesmart-kvm
+    restart: unless-stopped
+    ports:
+      - "8081:8080"   # host:container — container always listens on 8080
+    volumes:
+      - ./config:/config
+    environment:
+      # Used only to seed /config/config.json on first start;
+      # afterwards the settings page / config file wins.
+      TESMART_HOST: "10.0.4.50"
+      TESMART_PORT: "5000"
+      MQTT_HOST: ""            # e.g. "10.0.4.2" — empty disables MQTT
+      MQTT_PORT: "1883"
+      MQTT_USERNAME: ""
+      MQTT_PASSWORD: ""
+      MQTT_BASE_TOPIC: "tesmart/kvm"
+      LOG_LEVEL: "INFO"        # DEBUG logs every TX/RX hex frame

@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TESmart KVM Controller</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css">
+<style>
+  /* UniFi-controller-inspired design system: light, flat, thin borders */
+  :root {
+    --blue: #006fff;
+    --blue-hover: #0059d6;
+    --blue-tint: #f0f6ff;
+    --blue-border: #cfe2ff;
+    --bg: #f6f7fa;
+    --card: #ffffff;
+    --border: #e2e5ea;
+    --border-strong: #d0d4db;
+    --text: #24292e;
+    --muted: #6f7783;
+    --faint: #9aa1ac;
+    --ok: #29b873;
+    --err: #f03e3e;
+    --err-tint: #fdeeee;
+    --err-border: #f6c9c9;
+    --radius: 8px;
+    --radius-sm: 6px;
+    --shadow: 0 1px 2px rgba(16, 24, 40, .05);
+    --ring: 0 0 0 3px rgba(0, 111, 255, .15);
+  }
+  * { box-sizing: border-box; }
+  html { color-scheme: light; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, "Segoe UI", system-ui, Roboto, "Helvetica Neue", sans-serif;
+    font-size: 14px; line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ------------------------------------------------------------ top bar */
+  .topbar {
+    background: var(--card); border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 10;
+  }
+  .topbar-inner {
+    max-width: 920px; margin: 0 auto; padding: 12px 20px;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; flex-wrap: wrap;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand .logo {
+    width: 36px; height: 36px; border-radius: 8px; flex: none;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.3rem; color: #fff; background: var(--blue);
+  }
+  h1 { font-size: 15px; margin: 0; font-weight: 600; }
+  .brand .sub { color: var(--muted); font-size: 12px; margin-top: 0; }
+
+  .pill {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 5px 12px; border-radius: 999px; font-size: 12.5px;
+    background: var(--card); border: 1px solid var(--border);
+    color: var(--muted); font-weight: 500;
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); flex: none; }
+  .pill.ok .dot { background: var(--ok); }
+  .pill.err .dot { background: var(--err); }
+  .pill.ok { color: var(--text); }
+  .pill.err { color: var(--err); }
+
+  .wrap { max-width: 920px; margin: 0 auto; padding: 20px 20px 48px; }
+
+  /* -------------------------------------------------------------- cards */
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px; margin-bottom: 16px;
+    box-shadow: var(--shadow);
+  }
+  .card-title {
+    display: flex; align-items: center; gap: 8px;
+    margin: 0 0 16px; color: var(--text);
+    font-size: 14px; font-weight: 600;
+  }
+  .card-title .mdi { font-size: 17px; color: var(--blue); }
+
+  /* --------------------------------------------------------- error bar */
+  #error-bar {
+    display: none; align-items: flex-start; gap: 10px;
+    background: var(--err-tint); border: 1px solid var(--err-border);
+    color: #b23030; border-radius: var(--radius); padding: 11px 15px;
+    margin-bottom: 16px; font-size: 13px; word-break: break-word;
+  }
+  #error-bar .mdi { font-size: 16px; flex: none; margin-top: 1px; color: var(--err); }
+
+  /* --------------------------------------------------------- input grid */
+  #inputs {
+    display: grid; gap: 10px;
+    grid-template-columns: repeat(4, 1fr);  /* 4x4: even rows */
+  }
+  .input-btn {
+    background: var(--card); color: var(--text);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 10px 8px; cursor: pointer;
+    aspect-ratio: 1 / 0.9;  /* squareish */
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 5px;
+    text-align: center; font-size: 13px; font-weight: 500;
+    transition: border-color .12s, background .12s, box-shadow .12s;
+    overflow: hidden;
+  }
+  .input-btn:hover { border-color: var(--blue); }
+  .input-btn:active { background: var(--blue-tint); }
+  .input-btn .icon { font-size: 30px; line-height: 1; color: var(--muted); transition: color .12s; }
+  .input-btn .num { color: var(--faint); font-size: 10.5px; letter-spacing: .04em; }
+  .input-btn .name {
+    max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .input-btn.active {
+    background: var(--blue-tint); border-color: var(--blue);
+    box-shadow: inset 0 0 0 1px var(--blue);
+  }
+  .input-btn.active .icon, .input-btn.active .name { color: var(--blue); }
+  .input-btn.active .num { color: #7aabf5; }
+  .meta { color: var(--muted); font-size: 12.5px; margin-top: 14px; }
+  .meta strong { color: var(--text); font-weight: 600; }
+
+  /* ------------------------------------------------- controls / buttons */
+  .controls { display: flex; gap: 28px; flex-wrap: wrap; align-items: flex-end; }
+  .control-group .group-label {
+    display: block; color: var(--muted); font-size: 12px; font-weight: 500;
+    margin-bottom: 6px;
+  }
+  .btn {
+    display: inline-flex; align-items: center; gap: 7px;
+    background: var(--card); color: var(--text);
+    border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+    padding: 8px 14px; font-size: 13px; font-weight: 500; cursor: pointer;
+    transition: border-color .12s, background .12s;
+  }
+  .btn .mdi { font-size: 15px; line-height: 1; color: var(--muted); }
+  .btn:hover { border-color: var(--blue); color: var(--blue); }
+  .btn:hover .mdi { color: var(--blue); }
+  .btn.primary {
+    background: var(--blue); border-color: var(--blue); color: #fff;
+  }
+  .btn.primary .mdi { color: #fff; }
+  .btn.primary:hover { background: var(--blue-hover); border-color: var(--blue-hover); color: #fff; }
+
+  .segmented {
+    display: inline-flex; padding: 3px; gap: 2px;
+    background: #eef0f3; border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+  }
+  .segmented button {
+    display: inline-flex; align-items: center; gap: 6px;
+    border: 0; background: transparent; color: var(--muted);
+    padding: 6px 13px; border-radius: 4px; font-size: 13px;
+    font-weight: 500; cursor: pointer; transition: background .12s, color .12s;
+  }
+  .segmented button .mdi { font-size: 14px; line-height: 1; }
+  .segmented button:hover { color: var(--text); }
+  .segmented button.selected {
+    background: var(--card); color: var(--blue); font-weight: 600;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, .12);
+  }
+
+  /* ------------------------------------------------------------ settings */
+  details summary {
+    cursor: pointer; color: var(--text); font-weight: 600; font-size: 14px;
+    display: flex; align-items: center; gap: 8px; list-style: none;
+  }
+  details summary::-webkit-details-marker { display: none; }
+  details summary > .mdi:first-child { font-size: 17px; color: var(--blue); }
+  details summary .chev { margin-left: auto; transition: transform .18s; color: var(--faint); }
+  details[open] summary .chev { transform: rotate(180deg); }
+  .section-label {
+    display: flex; align-items: center; gap: 7px;
+    margin: 24px 0 0; padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text); font-size: 13px; font-weight: 600;
+  }
+  .section-label .mdi { color: var(--faint); font-size: 15px; }
+  .section-label .hint { color: var(--faint); font-weight: 400; font-size: 12px; margin-left: 4px; }
+  .grid2 {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 14px; margin-top: 14px;
+  }
+  .field label {
+    display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; font-weight: 500;
+  }
+  input[type=text], input[type=number], input[type=password], select {
+    width: 100%;
+    background: var(--card); color: var(--text);
+    border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+    padding: 8px 11px; font-size: 13.5px;
+    transition: border-color .12s, box-shadow .12s;
+  }
+  input::placeholder { color: var(--faint); }
+  input:focus, select:focus {
+    outline: none; border-color: var(--blue); box-shadow: var(--ring);
+  }
+  .names-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: 12px; margin-top: 14px;
+  }
+  .names-grid .field {
+    background: #fafbfc; border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 10px;
+  }
+  .names-grid .field label { color: var(--faint); font-size: 11px; }
+  .icon-row { display: flex; gap: 6px; align-items: center; margin-top: 6px; }
+  .icon-row .icon-preview {
+    width: 34px; height: 34px; flex: none;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 18px; color: var(--blue);
+    background: var(--blue-tint); border: 1px solid var(--blue-border);
+    border-radius: var(--radius-sm);
+  }
+  .icon-row input { flex: 1; min-width: 0; }
+  .hide-check {
+    display: flex; align-items: center; gap: 6px; margin-top: 8px;
+    font-size: 12px; color: var(--muted); cursor: pointer; user-select: none;
+  }
+  .hide-check input { width: auto; margin: 0; accent-color: var(--blue); cursor: pointer; }
+  .hide-check .mdi { font-size: 14px; color: var(--faint); }
+  .names-grid .field.is-hidden { opacity: .55; }
+  .save-row { display: flex; align-items: center; gap: 12px; margin-top: 24px; }
+  #save-note { font-size: 13px; }
+  #save-note.ok { color: var(--ok); }
+  #save-note.err { color: var(--err); }
+
+  footer { text-align: center; color: var(--faint); font-size: 12px; margin-top: 24px; }
+  footer a { color: var(--muted); }
+
+  #toast {
+    position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(6px);
+    display: flex; align-items: center; gap: 8px;
+    background: #24292e; color: #fff; border-radius: var(--radius-sm);
+    padding: 9px 16px; font-size: 13px;
+    box-shadow: 0 4px 12px rgba(16, 24, 40, .2);
+    opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  #toast .mdi { color: var(--ok); }
+
+  @media (max-width: 560px) {
+    /* 2 tiles per row; drop the PCx label and keep the custom name */
+    #inputs { grid-template-columns: repeat(2, 1fr); }
+    .input-btn { aspect-ratio: 1 / 0.62; font-size: 14px; }
+    .input-btn .icon { font-size: 34px; }
+    .input-btn .num { display: none; }
+    .controls { gap: 16px; }
+  }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <div class="logo"><span class="mdi mdi-video-switch"></span></div>
+      <div>
+        <h1>TESmart KVM</h1>
+        <div class="sub">HKS1601-EB23 &middot; 16-port HDMI</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <span id="conn-pill" class="pill"><span class="dot"></span><span id="conn-text">connecting…</span></span>
+      <span id="mqtt-pill" class="pill" style="display:none"><span class="dot"></span><span>MQTT</span></span>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+  <div id="error-bar"><span class="mdi mdi-alert-circle-outline"></span><span id="error-text"></span></div>
+
+  <div class="card">
+    <p class="card-title"><span class="mdi mdi-monitor-multiple"></span>Inputs</p>
+    <div id="inputs"></div>
+    <div class="meta">
+      Active: <strong id="active-label">–</strong>
+      <span id="updated-label"></span>
+    </div>
+  </div>
+
+  <div class="card">
+    <p class="card-title"><span class="mdi mdi-tune-variant"></span>Device controls</p>
+    <div class="controls">
+      <div class="control-group">
+        <span class="group-label">Status</span>
+        <button class="btn" id="btn-refresh"><span class="mdi mdi-refresh"></span>Refresh</button>
+      </div>
+      <div class="control-group">
+        <span class="group-label">Buzzer</span>
+        <div class="segmented" id="buzzer-seg">
+          <button data-buzzer="mute"><span class="mdi mdi-volume-off"></span>Mute</button>
+          <button data-buzzer="unmute"><span class="mdi mdi-volume-high"></span>Unmute</button>
+        </div>
+      </div>
+      <div class="control-group">
+        <span class="group-label">LED timeout</span>
+        <div class="segmented" id="led-seg">
+          <button data-mode="10">10 s</button>
+          <button data-mode="30">30 s</button>
+          <button data-mode="never">Never</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <details id="settings">
+      <summary>
+        <span class="mdi mdi-cog-outline"></span>Settings
+        <span class="mdi mdi-chevron-down chev"></span>
+      </summary>
+
+      <p class="section-label"><span class="mdi mdi-video-switch-outline"></span>KVM connection</p>
+      <div class="grid2">
+        <div class="field"><label>KVM IP / host</label><input type="text" id="cfg-kvm-host"></div>
+        <div class="field"><label>KVM TCP port</label><input type="number" id="cfg-kvm-port" min="1" max="65535"></div>
+        <div class="field"><label>Poll interval (seconds)</label><input type="number" id="cfg-poll" min="1" step="0.5"></div>
+      </div>
+
+      <p class="section-label"><span class="mdi mdi-transit-connection-variant"></span>MQTT broker<span class="hint">leave host empty to disable</span></p>
+      <div class="grid2">
+        <div class="field"><label>Broker host</label><input type="text" id="cfg-mqtt-host"></div>
+        <div class="field"><label>Broker port</label><input type="number" id="cfg-mqtt-port" min="1" max="65535"></div>
+        <div class="field"><label>Username</label><input type="text" id="cfg-mqtt-user" autocomplete="off"></div>
+        <div class="field"><label>Password</label><input type="password" id="cfg-mqtt-pass" autocomplete="new-password"></div>
+        <div class="field"><label>Base topic</label><input type="text" id="cfg-mqtt-topic"></div>
+        <div class="field"><label>Home Assistant discovery</label>
+          <select id="cfg-mqtt-discovery"><option value="true">Enabled</option><option value="false">Disabled</option></select>
+        </div>
+      </div>
+
+      <p class="section-label"><span class="mdi mdi-rename-box-outline"></span>Input names &amp; icons</p>
+      <div class="names-grid" id="names-grid"></div>
+
+      <div class="save-row">
+        <button class="btn primary" id="btn-save"><span class="mdi mdi-content-save-outline"></span>Save settings</button>
+        <span id="save-note"></span>
+      </div>
+    </details>
+  </div>
+
+  <footer>TESmart KVM Controller &middot; REST API at <a href="/docs">/docs</a></footer>
+</div>
+<div id="toast"><span class="mdi mdi-check-circle-outline"></span><span id="toast-text"></span></div>
+
+<script>
+"use strict";
+
+const POLL_MS = 3000;
+const DEFAULT_ICON = "monitor";
+// Common suggestions for the icon picker; any MDI name works.
+const ICON_SUGGESTIONS = [
+  "monitor", "laptop", "desktop-tower", "desktop-classic", "server",
+  "server-network", "raspberry-pi", "apple", "microsoft-windows", "linux",
+  "ubuntu", "console", "sony-playstation", "microsoft-xbox",
+  "nintendo-switch", "television", "camera", "nas", "router-network",
+  "printer", "gamepad-variant", "code-braces", "video-input-hdmi", "chip",
+];
+let inputNames = {};
+let inputIcons = {};
+let hiddenInputs = [];
+let currentInput = null;
+
+const $ = (id) => document.getElementById(id);
+
+function toast(msg) {
+  $("toast-text").textContent = msg;
+  $("toast").classList.add("show");
+  setTimeout(() => $("toast").classList.remove("show"), 2200);
+}
+
+function showError(msg) {
+  const bar = $("error-bar");
+  if (msg) { $("error-text").textContent = msg; bar.style.display = "flex"; }
+  else { bar.style.display = "none"; }
+}
+
+async function api(path, options = {}) {
+  const res = await fetch(path, options);
+  let body = null;
+  try { body = await res.json(); } catch (e) { /* no body */ }
+  if (!res.ok) {
+    throw new Error((body && body.detail) || `${res.status} ${res.statusText}`);
+  }
+  return body;
+}
+
+function cleanIcon(value) {
+  let icon = String(value || "").trim().toLowerCase()
+    .replace(/^mdi[:-]/, "");
+  return /^[a-z0-9-]+$/.test(icon) ? icon : "";
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c =>
+    ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+/* ------------------------------------------------------------ input grid */
+
+function renderInputs() {
+  const grid = $("inputs");
+  grid.innerHTML = "";
+  for (let i = 1; i <= 16; i++) {
+    if (hiddenInputs.includes(i)) continue;
+    const btn = document.createElement("button");
+    btn.className = "input-btn" + (i === currentInput ? " active" : "");
+    btn.dataset.input = i;
+    const name = inputNames[String(i)] || `PC${i}`;
+    const icon = cleanIcon(inputIcons[String(i)]) || DEFAULT_ICON;
+    btn.innerHTML =
+      `<span class="icon mdi mdi-${icon}"></span>` +
+      `<span class="name">${escapeHtml(name)}</span>` +
+      `<span class="num">PC${i}</span>`;
+    btn.addEventListener("click", () => selectInput(i));
+    grid.appendChild(btn);
+  }
+}
+
+function setSegment(containerId, attr, value) {
+  document.querySelectorAll(`#${containerId} button`).forEach(b => {
+    b.classList.toggle("selected", b.dataset[attr] === value);
+  });
+}
+
+function applyStatus(st) {
+  currentInput = st.current_input;
+  inputNames = st.input_names || inputNames;
+  inputIcons = st.input_icons || inputIcons;
+  hiddenInputs = st.hidden_inputs || hiddenInputs;
+
+  const pill = $("conn-pill");
+  pill.className = "pill " + (st.connected ? "ok" : "err");
+  $("conn-text").textContent = st.connected
+    ? `KVM ${st.kvm_host}:${st.kvm_port}`
+    : "KVM offline";
+
+  const mq = $("mqtt-pill");
+  if (st.mqtt_enabled) {
+    mq.style.display = "";
+    mq.className = "pill " + (st.mqtt_connected ? "ok" : "err");
+  } else {
+    mq.style.display = "none";
+  }
+
+  showError(st.last_error);
+  $("active-label").textContent = st.current_input
+    ? `${st.current_input_name} (PC${st.current_input})` : "unknown";
+  $("updated-label").textContent = st.last_updated
+    ? ` · updated ${new Date(st.last_updated * 1000).toLocaleTimeString()}` : "";
+
+  setSegment("buzzer-seg", "buzzer",
+    st.buzzer_muted === true ? "mute" : st.buzzer_muted === false ? "unmute" : null);
+  setSegment("led-seg", "mode", st.led_timeout || null);
+
+  renderInputs();
+}
+
+async function refreshStatus(manual = false) {
+  try {
+    if (manual) await api("/api/refresh", { method: "POST" });
+    const st = await api("/api/status");
+    applyStatus(st);
+  } catch (err) {
+    showError(err.message);
+    $("conn-pill").className = "pill err";
+    $("conn-text").textContent = "app unreachable";
+  }
+}
+
+async function selectInput(i) {
+  try {
+    await api(`/api/input/${i}`, { method: "POST" });
+    currentInput = i;
+    renderInputs();
+    $("active-label").textContent = `${inputNames[String(i)] || "PC" + i} (PC${i})`;
+    showError(null);
+  } catch (err) {
+    showError(`Switch to PC${i} failed: ${err.message}`);
+  }
+}
+
+async function deviceAction(path, label) {
+  try {
+    await api(path, { method: "POST" });
+    showError(null);
+    toast(label);
+    refreshStatus();
+  } catch (err) {
+    showError(`${label} failed: ${err.message}`);
+  }
+}
+
+/* ------------------------------------------------------------- settings */
+
+function buildNamesGrid() {
+  const grid = $("names-grid");
+  grid.innerHTML = "";
+  for (let i = 1; i <= 16; i++) {
+    const div = document.createElement("div");
+    div.className = "field";
+    div.innerHTML =
+      `<label>PC${i}</label>` +
+      `<input type="text" id="name-${i}" maxlength="32" placeholder="name">` +
+      `<div class="icon-row">` +
+      `<span class="icon-preview mdi mdi-${DEFAULT_ICON}" id="icon-preview-${i}"></span>` +
+      `<input type="text" id="icon-${i}" list="mdi-icons" placeholder="icon (mdi)" ` +
+      `autocomplete="off" spellcheck="false">` +
+      `</div>` +
+      `<label class="hide-check"><input type="checkbox" id="hide-${i}">` +
+      `<span class="mdi mdi-eye-off-outline"></span>Hide from UI</label>`;
+    grid.appendChild(div);
+    $(`icon-${i}`).addEventListener("input", () => updateIconPreview(i));
+    $(`hide-${i}`).addEventListener("change", (e) =>
+      div.classList.toggle("is-hidden", e.target.checked));
+  }
+  const datalist = document.createElement("datalist");
+  datalist.id = "mdi-icons";
+  datalist.innerHTML = ICON_SUGGESTIONS.map(n => `<option value="${n}">`).join("");
+  document.body.appendChild(datalist);
+}
+
+function updateIconPreview(i) {
+  const icon = cleanIcon($(`icon-${i}`).value) || DEFAULT_ICON;
+  $(`icon-preview-${i}`).className = `icon-preview mdi mdi-${icon}`;
+}
+
+async function loadConfig() {
+  const cfg = await api("/api/config");
+  $("cfg-kvm-host").value = cfg.kvm.host;
+  $("cfg-kvm-port").value = cfg.kvm.port;
+  $("cfg-poll").value = cfg.poll_interval;
+  $("cfg-mqtt-host").value = cfg.mqtt.host;
+  $("cfg-mqtt-port").value = cfg.mqtt.port;
+  $("cfg-mqtt-user").value = cfg.mqtt.username;
+  $("cfg-mqtt-pass").value = cfg.mqtt.password;
+  $("cfg-mqtt-topic").value = cfg.mqtt.base_topic;
+  $("cfg-mqtt-discovery").value = String(cfg.mqtt.discovery);
+  const hidden = cfg.hidden_inputs || [];
+  for (let i = 1; i <= 16; i++) {
+    $(`name-${i}`).value = cfg.input_names[String(i)] || `PC${i}`;
+    $(`icon-${i}`).value = (cfg.input_icons || {})[String(i)] || "";
+    $(`hide-${i}`).checked = hidden.includes(i);
+    $(`hide-${i}`).closest(".field").classList.toggle("is-hidden", hidden.includes(i));
+    updateIconPreview(i);
+  }
+}
+
+async function saveConfig() {
+  const note = $("save-note");
+  note.textContent = "saving…"; note.className = "";
+  const names = {};
+  const icons = {};
+  const hidden = [];
+  for (let i = 1; i <= 16; i++) {
+    const v = $(`name-${i}`).value.trim();
+    if (v) names[String(i)] = v;
+    // always send icons: empty string clears a previously set icon
+    icons[String(i)] = cleanIcon($(`icon-${i}`).value);
+    if ($(`hide-${i}`).checked) hidden.push(i);
+  }
+  const payload = {
+    kvm: {
+      host: $("cfg-kvm-host").value.trim(),
+      port: parseInt($("cfg-kvm-port").value, 10) || 5000,
+    },
+    mqtt: {
+      host: $("cfg-mqtt-host").value.trim(),
+      port: parseInt($("cfg-mqtt-port").value, 10) || 1883,
+      username: $("cfg-mqtt-user").value.trim(),
+      password: $("cfg-mqtt-pass").value,
+      base_topic: $("cfg-mqtt-topic").value.trim() || "tesmart/kvm",
+      discovery: $("cfg-mqtt-discovery").value === "true",
+    },
+    input_names: names,
+    input_icons: icons,
+    hidden_inputs: hidden,
+    poll_interval: parseFloat($("cfg-poll").value) || 5,
+  };
+  try {
+    await api("/api/config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    note.textContent = "saved ✓"; note.className = "ok";
+    inputNames = names;
+    inputIcons = icons;
+    hiddenInputs = hidden;
+    renderInputs();
+    refreshStatus();
+  } catch (err) {
+    note.textContent = `save failed: ${err.message}`; note.className = "err";
+  }
+}
+
+/* ----------------------------------------------------------------- init */
+
+$("btn-refresh").addEventListener("click", () => refreshStatus(true));
+document.querySelectorAll("#buzzer-seg button").forEach(b =>
+  b.addEventListener("click", () =>
+    deviceAction(`/api/buzzer/${b.dataset.buzzer}`,
+      b.dataset.buzzer === "mute" ? "Buzzer muted" : "Buzzer unmuted")));
+document.querySelectorAll("#led-seg button").forEach(b =>
+  b.addEventListener("click", () =>
+    deviceAction(`/api/led-timeout/${b.dataset.mode}`, `LED timeout: ${b.dataset.mode}`)));
+$("btn-save").addEventListener("click", saveConfig);
+$("settings").addEventListener("toggle", (e) => {
+  if (e.target.open) loadConfig().catch(err => showError(err.message));
+});
+
+buildNamesGrid();
+renderInputs();
+refreshStatus();
+setInterval(() => refreshStatus(), POLL_MS);
+</script>
+</body>
+</html>
