@@ -148,8 +148,7 @@ repository.yaml         # makes this repo a HA add-on repository
 docker-compose.yml      # standalone deployment
 tesmart_kvm/            # the add-on (also the standalone image context)
   config.yaml           #   HA add-on manifest: options schema, ingress, ports
-  build.yaml            #   per-arch base images for Supervisor builds
-  Dockerfile            #   BUILD_FROM-aware; same image standalone and add-on
+  Dockerfile            #   pinned python:3.12-slim base; same image standalone and add-on
   DOCS.md               #   add-on documentation shown in HA
   translations/en.yaml  #   pretty option labels in the HA config panel
   app/

@@ -1,7 +1,9 @@
-# BUILD_FROM lets the Home Assistant Supervisor inject its per-arch base
-# image (see build.yaml); standalone builds get the same default.
+# The HA Supervisor passes a BUILD_FROM build-arg (its Alpine base without
+# Python); we deliberately ignore it and pin a multi-arch Python base so pip
+# and prebuilt wheels are available on every architecture, for Supervisor
+# builds and standalone docker compose alike.
 ARG BUILD_FROM=python:3.12-slim
-FROM ${BUILD_FROM}
+FROM python:3.12-slim
 
 WORKDIR /srv
 
