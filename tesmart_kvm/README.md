@@ -1,4 +1,4 @@
-# TESmart KVM Controller
+# KVM Network Remote
 
 Control a TESmart HKS1601-EB23 16-port HDMI KVM switch from Home Assistant:
 web UI (via Ingress), MQTT entities with discovery, and a REST API.

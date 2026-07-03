@@ -15,7 +15,7 @@ talking to the switch over its raw TCP protocol (default `10.0.4.50:5000`).
 
 1. In HA go to **Settings → Add-ons → Add-on Store → ⋮ → Repositories** and add
    `https://github.com/Aureum-Digital/TESmart_HKS1601-EB23_remote`
-2. Install **TESmart KVM Controller** from the store.
+2. Install **KVM Network Remote** from the store.
 3. Open the add-on's **Configuration** tab and set `kvm_host` (and MQTT
    options if you don't use the Mosquitto add-on — with Mosquitto installed
    the broker is auto-discovered, leave `mqtt_host` empty).

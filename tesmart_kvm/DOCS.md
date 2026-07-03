@@ -1,4 +1,4 @@
-# TESmart KVM Controller
+# KVM Network Remote
 
 Controls a TESmart HKS1601-EB23 16-port HDMI KVM switch over its TCP
 protocol, with a web UI (Ingress), a REST API and MQTT entities.
@@ -7,7 +7,7 @@ protocol, with a web UI (Ingress), a REST API and MQTT entities.
 
 1. Add this repository in **Settings → Add-ons → Add-on Store → ⋮ →
    Repositories**: `https://github.com/Aureum-Digital/TESmart_HKS1601-EB23_remote`
-2. Install **TESmart KVM Controller**.
+2. Install **KVM Network Remote**.
 3. Set at least `kvm_host` in the **Configuration** tab and start the add-on.
 4. Use **Open Web UI** (or the **KVM** entry in the sidebar) to open the panel.
 
