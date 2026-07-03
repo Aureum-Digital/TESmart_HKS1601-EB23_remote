@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>KVM Network Remote</title>
+<link rel="icon" type="image/png" href="icon.png">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css">
 <style>
   /* UniFi-controller-inspired design system: light, flat, thin borders */
@@ -49,9 +50,8 @@
   }
   .brand { display: flex; align-items: center; gap: 12px; }
   .brand .logo {
-    width: 36px; height: 36px; border-radius: 8px; flex: none;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 1.3rem; color: #fff; background: var(--blue);
+    width: 38px; height: 38px; flex: none; display: block;
+    /* the PNG already has its own rounded corners */
   }
   h1 { font-size: 15px; margin: 0; font-weight: 600; }
   .brand .sub { color: var(--muted); font-size: 12px; margin-top: 0; }
@@ -267,7 +267,7 @@
 <div class="topbar">
   <div class="topbar-inner">
     <div class="brand">
-      <div class="logo"><span class="mdi mdi-video-switch"></span></div>
+      <img class="logo" src="icon.png" alt="KVM Network Remote">
       <div>
         <h1>TESmart KVM</h1>
         <div class="sub">HKS1601-EB23 &middot; 16-port HDMI</div>

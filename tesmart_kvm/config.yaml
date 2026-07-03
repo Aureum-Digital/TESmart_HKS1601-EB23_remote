@@ -1,5 +1,5 @@
 name: KVM Network Remote
-version: "0.2.2"
+version: "0.2.3"
 slug: tesmart_kvm
 description: Web + MQTT controller for the TESmart HKS1601-EB23 16-port HDMI KVM switch
 url: https://github.com/Aureum-Digital/TESmart_HKS1601-EB23_remote

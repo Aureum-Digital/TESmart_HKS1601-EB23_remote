@@ -80,6 +80,11 @@ async def index() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
 
 
+@app.get("/icon.png", include_in_schema=False)
+async def icon() -> FileResponse:
+    return FileResponse(STATIC_DIR / "icon.png")
+
+
 @app.get("/api/status")
 async def get_status() -> dict[str, Any]:
     snapshot = controller.state.snapshot()
