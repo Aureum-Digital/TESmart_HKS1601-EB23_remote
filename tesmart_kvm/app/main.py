@@ -77,12 +77,18 @@ class ConfigPayload(BaseModel):
 
 @app.get("/", include_in_schema=False)
 async def index() -> FileResponse:
-    return FileResponse(STATIC_DIR / "index.html")
+    # no-cache: the browser must revalidate so UI updates appear right after
+    # an add-on/container update (Ingress iframes cache aggressively)
+    return FileResponse(
+        STATIC_DIR / "index.html", headers={"Cache-Control": "no-cache"}
+    )
 
 
 @app.get("/icon.png", include_in_schema=False)
 async def icon() -> FileResponse:
-    return FileResponse(STATIC_DIR / "icon.png")
+    return FileResponse(
+        STATIC_DIR / "icon.png", headers={"Cache-Control": "max-age=86400"}
+    )
 
 
 @app.get("/api/status")

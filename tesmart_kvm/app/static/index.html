@@ -145,6 +145,7 @@
   }
   .btn.primary .mdi { color: #fff; }
   .btn.primary:hover { background: var(--blue-hover); border-color: var(--blue-hover); color: #fff; }
+  .btn.btn-sm { padding: 5px 11px; font-size: 12.5px; border-radius: 999px; }
 
   .segmented {
     display: inline-flex; padding: 3px; gap: 2px;
@@ -273,9 +274,12 @@
         <div class="sub">HKS1601-EB23 &middot; 16-port HDMI</div>
       </div>
     </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
       <span id="conn-pill" class="pill"><span class="dot"></span><span id="conn-text">connecting…</span></span>
       <span id="mqtt-pill" class="pill" style="display:none"><span class="dot"></span><span>MQTT</span></span>
+      <button class="btn btn-sm" id="btn-reconnect" style="display:none" title="Retry connecting now">
+        <span class="mdi mdi-refresh"></span>Reconnect
+      </button>
     </div>
   </div>
 </div>
@@ -454,6 +458,7 @@ function applyStatus(st) {
   $("conn-text").textContent = st.connected
     ? `KVM ${st.kvm_host}:${st.kvm_port}`
     : "KVM offline";
+  $("btn-reconnect").style.display = st.connected ? "none" : "";
 
   const mq = $("mqtt-pill");
   if (st.mqtt_enabled) {
@@ -477,15 +482,24 @@ function applyStatus(st) {
 }
 
 async function refreshStatus(manual = false) {
+  // NB: all API paths are relative so the app works behind HA Ingress
+  if (manual) {
+    try {
+      await api("api/refresh", { method: "POST" });
+    } catch (err) {
+      // Device query failed (e.g. KVM offline) — the status fetch below
+      // still succeeds and renders the real state; don't blame the app.
+    }
+  }
   try {
-    // NB: all API paths are relative so the app works behind HA Ingress
-    if (manual) await api("api/refresh", { method: "POST" });
     const st = await api("api/status");
     applyStatus(st);
   } catch (err) {
-    showError(err.message);
+    // Only here is the app itself unreachable (server down / network)
+    showError(`App unreachable: ${err.message}`);
     $("conn-pill").className = "pill err";
     $("conn-text").textContent = "app unreachable";
+    $("btn-reconnect").style.display = "";
   }
 }
 
@@ -624,6 +638,7 @@ async function saveConfig() {
 /* ----------------------------------------------------------------- init */
 
 $("btn-refresh").addEventListener("click", () => refreshStatus(true));
+$("btn-reconnect").addEventListener("click", () => refreshStatus(true));
 document.querySelectorAll("#buzzer-seg button").forEach(b =>
   b.addEventListener("click", () =>
     deviceAction(`api/buzzer/${b.dataset.buzzer}`,
